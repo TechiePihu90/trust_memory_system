@@ -1,157 +1,86 @@
 # Trust-Aware Memory Intelligence System
 
-A multi-agent AI system that ingests noisy, conflicting claims, evaluates trustworthiness, resolves contradictions, and builds a trusted, explainable memory store backed by PostgreSQL.
-
-The system includes a React-based frontend for interactive claim ingestion, memory exploration, and explanation visualization, along with a FastAPI backend that powers the trust-aware reasoning pipeline.
-
----
-
-## Architecture
-
-### Frontend
-- React + Vite
-- Interactive dashboard for memory exploration
-- Claim ingestion interface
-- Belief explanation and provenance visualization
-- Statistics and changelog views
-
-### Backend
-- FastAPI
-- Multi-agent trust reasoning pipeline
-- PostgreSQL memory store
-- Swagger UI for API testing and demonstration
-
----
+Multi-agent AI system that ingests noisy, conflicting claims and builds
+a trusted, explainable memory store backed by PostgreSQL.
 
 ## Folder Structure
 
-```text
-trust_memory_system/
-├── frontend/
-│   └── system-frontend/      React + Vite frontend
-│
-├── trust_memory_system/
-│   ├── main.py               FastAPI application
-│   │
-│   ├── agents/
-│   │   ├── claim_extractor.py
-│   │   ├── verification.py
-│   │   ├── contradiction.py
-│   │   └── curator.py
-│   │
-│   ├── memory/
-│   │   ├── models.py
-│   │   └── store.py
-│   │
-│   ├── data/
-│   │   ├── claims_1_1.jsonl
-│   │   └── schema_1_1.json
-│   │
-│   ├── requirements.txt
-│   └── .env
 ```
-
----
-
-## Key Features
-
-- Multi-agent claim processing pipeline
-- Trust-aware confidence scoring
-- Contradiction detection and resolution
-- Explainable memory evolution
-- Full provenance tracking
-- Corroboration-based belief strengthening
-- Complete audit trail
-- Interactive React dashboard
-- REST APIs with Swagger documentation
-
----
-
-## Technology Stack
-
-### Frontend
-- React
-- Vite
-- JavaScript
-- CSS
-
-### Backend
-- FastAPI
-- Python
-- PostgreSQL
-- Pydantic
-- Groq API
-
----
+trust_memory_system/
+├── main.py                   FastAPI app — all routes, Swagger auto-generated
+├── agents/
+|   |__claim_extractor.py 
+│   ├── verification.py       Scores confidence using source_reliability + label
+│   ├── contradiction.py      Detects conflicts for same subject+predicate
+│   └── curator.py            Decides: ACCEPTED/UPDATED/DOWNGRADED/REJECTED/FORGOTTEN/MERGED
+├── memory/
+│   ├── models.py             Pydantic models matching schema_1_1.json exactly
+│   └── store.py              PostgreSQL read/write with corroboration logic
+├── data/
+│   ├── claims_1_1.jsonl      The actual dataset (50 claims, all edge cases)
+│   └── schema_1_1.json       Official schema reference
+├── requirements.txt
+└── .env
+```
 
 ## Setup
 
-### Backend
-
 ```bash
+# 1. Install dependencies
 pip install -r requirements.txt
 
+# 2. Create PostgreSQL database
+createdb trust_memory
+
+# 3. Fill in your keys
+# Edit .env:
+#   GROQ_API_KEY=your_key
+#   DATABASE_URL=postgresql://postgres:password@localhost:5432/trust_memory
+
+# 4. Start the server
 uvicorn main:app --reload
+
+# 5. Open Swagger UI
+# http://localhost:8000/docs
 ```
-
-Swagger UI:
-
-```text
-http://localhost:8000/docs
-```
-
-### Frontend
-
-```bash
-cd frontend/system-frontend
-
-npm install
-
-npm run dev
-```
-
-Default frontend URL:
-
-```text
-http://localhost:5173
-```
-
----
 
 ## Demo Flow for Judges
 
-| Step | Endpoint/Page | Purpose |
-|--------|-------------|----------|
-| 1 | Reset Memory | Start from a clean state |
-| 2 | Batch Ingest | Process all claims |
-| 3 | Statistics Dashboard | View trust metrics |
-| 4 | Memory Explorer | Inspect stored beliefs |
-| 5 | Explain View | Show provenance and reasoning |
-| 6 | Conflict Example | Demonstrate contradiction handling |
-| 7 | Changelog | Show complete audit history |
+| Step | Endpoint | What to show |
+|------|----------|--------------|
+| 1 | `DELETE /memory/reset` | Fresh start before demo |
+| 2 | `POST /batch-ingest` | Paste claims_1_1.jsonl as JSON array — watch all 50 claims processed |
+| 3 | `GET /stats` | System overview — action breakdown, corroboration counts |
+| 4 | `GET /memory/Startup A` | Show how Startup A's funding belief evolved |
+| 5 | `GET /explain/Startup A` | **The money shot** — full belief provenance with history |
+| 6 | `GET /explain/GreenTech Corp` | Show equal-confidence conflict handling (no oscillation) |
+| 7 | `GET /changelog` | Full audit trail of every belief change |
 
----
+## How to Use the Dataset for Batch Ingest
 
-## Edge Cases Handled
+The file `data/claims_1_1.jsonl` has one JSON object per line.
+To use with `/batch-ingest`, convert to a JSON array:
 
-- Duplicate claims
-- Reworded duplicates
-- Higher-trust corrections
-- Adversarial low-trust sources
-- Equal-confidence conflicts
-- Missing timestamps
-- Stale information resurfacing
-- Memory overflow and noise filtering
+```python
+import json
 
----
+with open("data/claims_1_1.jsonl") as f:
+    claims = [json.loads(line) for line in f if line.strip()]
 
-## Outcomes
+print(json.dumps(claims, indent=2))
+# Paste this output into Swagger /batch-ingest body
+```
 
-The curator agent can assign the following actions:
+## Edge Cases the System Handles
 
-- ACCEPTED
-- UPDATED
-- MERGED
-- DOWNGRADED
-- REJECTED
-- FORGOTTEN
+| Case | Example from dataset | Action |
+|------|----------------------|--------|
+| Duplicate same wording | C001 + C002 (both $5M) | MERGED + corroboration_count++ |
+| Duplicate different wording | C002 + C003 ($5M vs five million) | MERGED |
+| Higher-trust source corrects | C001 ($5M) → C004 ($8M, Forbes) | UPDATED |
+| Adversarial low-trust | C006 ($50M, UnknownBlog 0.2) | REJECTED |
+| Equal-confidence conflict | C032 vs C033 (GreenTech 2010 vs 2012) | DOWNGRADED |
+| Authoritative source resolves | C034 (SEC Filing 0.98) | ACCEPTED/UPDATED |
+| Stale claim resurfaces | C024 (old subscriber count) | REJECTED/DOWNGRADED |
+| Missing timestamp | C031 (AnonTip, null timestamp) | Processed with uncertainty |
+| Memory overflow fillers | C035–C049 (LowTrustBlog, NOT VERIFIABLE) | REJECTED |

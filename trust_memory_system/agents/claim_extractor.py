@@ -21,7 +21,7 @@ Return ONLY valid JSON, no markdown:
 
     response = client.chat.completions.create(
         model="llama-3.3-70b-versatile",
-        messages=[{"role": "user", "content": prompt}],
+        messages=[{"role": "user", "content": prompt}],  #we define roles here 
         max_tokens=200,
         temperature=0.1
     )
